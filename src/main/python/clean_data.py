@@ -69,11 +69,12 @@ def clean_text(text):
     # Remove extra whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     
-    # Remove special characters but keep important punctuation
-    text = re.sub(r'[^\w\s.,;!?-]', '', text)
+    # Keep all punctuation as they can be valid POS tags
+    # Only remove non-standard characters that aren't punctuation
+    text = re.sub(r'[^\w\s.,;:!?()\[\]{}"\'`@#$%^&*+=<>/-]', '', text)
     
     # Normalize punctuation spacing
-    text = re.sub(r'\s([.,;!?])', r'\1', text)
+    text = re.sub(r'\s([.,;:!?()])', r'\1', text)
     
     return text
 
@@ -91,7 +92,19 @@ def standardize_pos_tag(tag):
         'CONJ': 'CC',
         'NUM': 'CD',
         'PART': 'RP',
-        'INTJ': 'UH'
+        'INTJ': 'UH',
+        # Add standard tags for punctuation
+        '.': 'PERIOD',
+        ',': 'COMMA',
+        ':': 'COLON',
+        ';': 'SEMICOLON',
+        '!': 'EXCLAMATION',
+        '?': 'QUESTION',
+        '(': 'LPAREN',
+        ')': 'RPAREN',
+        '"': 'QUOTE',
+        "'": 'APOSTROPHE',
+        '-': 'HYPHEN'
     }
     
     return tag_map.get(tag, tag)  # Return original if not in map

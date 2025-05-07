@@ -1,0 +1,2 @@
+Quadgram: 1038050	10526	0.9900
+Time: 162467 Milliseconds

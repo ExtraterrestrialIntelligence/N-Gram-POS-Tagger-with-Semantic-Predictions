@@ -2,6 +2,7 @@ package com.extraterrestrial.intelligence.model;
 
 import com.extraterrestrial.intelligence.data.TaggedSentence;
 import com.extraterrestrial.intelligence.data.TaggerWord;
+import com.extraterrestrial.intelligence.util.WordShapeUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,8 +27,33 @@ public class DefaultTagger implements Tagger {
     
     @Override
     public String predict(List<TaggerWord> sentence, int position) {
+        String word = sentence.get(position).getWord();
+        
+        // Special handling for punctuation
+        if (WordShapeUtil.isPunctuation(word)) {
+            return "PUNCT";
+        }
+        
+        // Special handling for numbers
+        if (WordShapeUtil.isNumeric(word)) {
+            return "NUM";
+        }
+        
+        // Try to guess based on suffixes
+        String guessedTag = WordShapeUtil.guessPosFromSuffix(word);
+        if (guessedTag != null) {
+            return guessedTag;
+        }
+        
+        // If capitalized and not at the beginning of the sentence, likely a proper noun
+        if (WordShapeUtil.isCapitalized(word) && position > 0) {
+            return "NNP";
+        }
+        
         return defaultTag;
     }
+    
+    // Use WordShapeUtil instead of local methods
     
     @Override
     public TaggedSentence tagSentence(TaggedSentence sentence) {

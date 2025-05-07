@@ -1,0 +1,3 @@
+Unigram: 20618	1459	0.9339
+Bigram: 21098	979	0.9557
+Time: 987 Milliseconds

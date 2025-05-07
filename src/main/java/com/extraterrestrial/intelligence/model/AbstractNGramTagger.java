@@ -24,12 +24,98 @@ public abstract class AbstractNGramTagger implements Tagger {
         List<TaggerWord> originalWords = sentence.getWords();
         List<TaggerWord> taggedWords = new ArrayList<>();
         
+        // Create a working copy that will be updated with predicted tags as we go
+        List<TaggerWord> workingCopy = new ArrayList<>();
+        for (TaggerWord word : originalWords) {
+            // Start with empty tags that will be filled as we process the sentence
+            workingCopy.add(new TaggerWord(word.getWord(), ""));
+        }
+        
+        // First pass: Special case handling for known patterns
+        preprocessSpecialCases(workingCopy);
+        
+        // Second pass: Process each word in sequence, using previously assigned tags
         for (int i = 0; i < originalWords.size(); i++) {
-            String predictedTag = predict(originalWords, i);
+            // Special handling for punctuation, numbers, and other special cases
+            if (isSpecialCase(workingCopy.get(i).getWord())) {
+                String specialCaseTag = getSpecialCaseTag(workingCopy.get(i).getWord());
+                workingCopy.set(i, new TaggerWord(originalWords.get(i).getWord(), specialCaseTag));
+                taggedWords.add(new TaggerWord(originalWords.get(i).getWord(), specialCaseTag));
+                continue;
+            }
+            
+            // Use the normal prediction mechanism for regular words
+            String predictedTag = predict(workingCopy, i);
+            
+            // Update the working copy with the predicted tag
+            workingCopy.set(i, new TaggerWord(originalWords.get(i).getWord(), predictedTag));
+            
+            // Add to the final result
             taggedWords.add(new TaggerWord(originalWords.get(i).getWord(), predictedTag));
         }
         
+        // Final pass: Apply post-processing rules to fix common patterns and ensure consistency
+        postprocessTags(taggedWords);
+        
         return new TaggedSentence(taggedWords);
+    }
+    
+    /**
+     * Pre-process special cases in the sentence
+     */
+    protected void preprocessSpecialCases(List<TaggerWord> sentence) {
+        // Special handling for common sequences can be implemented by subclasses
+    }
+    
+    /**
+     * Post-process tags to fix common patterns and ensure consistency
+     */
+    protected void postprocessTags(List<TaggerWord> taggedWords) {
+        // Can be overridden by subclasses to apply post-processing rules
+    }
+    
+    /**
+     * Check if a word is a special case that needs custom handling
+     */
+    protected boolean isSpecialCase(String word) {
+        // Check for punctuation
+        if (WordShapeUtil.isPunctuation(word)) {
+            return true;
+        }
+        
+        // Check for numbers
+        if (WordShapeUtil.isNumeric(word)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get the tag for a special case word
+     */
+    protected String getSpecialCaseTag(String word) {
+        // Handle punctuation
+        if (WordShapeUtil.isPunctuation(word)) {
+            if (word.equals(".")) return ".";
+            if (word.equals(",")) return ",";
+            if (word.equals(":")) return ":";
+            if (word.equals(";")) return ":";
+            if (word.equals("!")) return ".";
+            if (word.equals("?")) return ".";
+            if (word.equals("(") || word.equals(")")) return "-LRB-";
+            if (word.equals("[") || word.equals("]")) return "-LSB-";
+            if (word.equals("{") || word.equals("}")) return "-LCB-";
+            return "SYM";
+        }
+        
+        // Handle numbers
+        if (WordShapeUtil.isNumeric(word)) {
+            return "CD";
+        }
+        
+        // Default fallback
+        return "NN";
     }
     
     @Override
@@ -38,10 +124,16 @@ public abstract class AbstractNGramTagger implements Tagger {
         int correctPredictions = 0;
         
         for (TaggedSentence sentence : testSentences) {
-            List<TaggerWord> words = sentence.getWords();
-            for (int i = 0; i < words.size(); i++) {
-                String actualTag = words.get(i).getTag();
-                String predictedTag = predict(words, i);
+            // Tag the entire sentence using the tagger's tagSentence method
+            // This ensures we're using the predicted tags for context
+            TaggedSentence taggedSentence = tagSentence(sentence);
+            
+            List<TaggerWord> originalWords = sentence.getWords();
+            List<TaggerWord> predictedWords = taggedSentence.getWords();
+            
+            for (int i = 0; i < originalWords.size(); i++) {
+                String actualTag = originalWords.get(i).getTag();
+                String predictedTag = predictedWords.get(i).getTag();
                 
                 totalWords++;
                 if (actualTag.equals(predictedTag)) {

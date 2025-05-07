@@ -98,28 +98,61 @@ public class JackknifeEvaluator {
         // Build taggers with backoff chain
         System.out.println("  Building and training taggers...");
         
+        // Create taggers, but don't chain them for backoff. We'll evaluate them independently
         DefaultTagger defaultTagger = new DefaultTagger();
         
+        // Unigram with Default backoff
         UniGramTagger unigramTagger = new UniGramTagger(defaultTagger);
         unigramTagger.train(trainingSentences);
         
-        BiGramTagger bigramTagger = new BiGramTagger(unigramTagger);
+        // Create separate tagger instances to evaluate each n-gram model independently
+        DefaultTagger defaultTagger2 = new DefaultTagger();
+        UniGramTagger unigramBackoff = new UniGramTagger(defaultTagger2);
+        unigramBackoff.train(trainingSentences);
+        
+        // Bigram with proper Unigram backoff
+        BiGramTagger bigramTagger = new BiGramTagger(unigramBackoff);
         bigramTagger.train(trainingSentences);
         
-        TriGramTagger trigramTagger = new TriGramTagger(bigramTagger);
+        // Create another instance for Trigram's backoff
+        DefaultTagger defaultTagger3 = new DefaultTagger();
+        UniGramTagger unigramBackoff2 = new UniGramTagger(defaultTagger3);
+        unigramBackoff2.train(trainingSentences);
+        BiGramTagger bigramBackoff = new BiGramTagger(unigramBackoff2);
+        bigramBackoff.train(trainingSentences);
+        
+        // Trigram with proper Bigram backoff
+        TriGramTagger trigramTagger = new TriGramTagger(bigramBackoff);
         trigramTagger.train(trainingSentences);
         
-        QuadGramTagger quadgramTagger = new QuadGramTagger(trigramTagger);
+        // Create another instance for Quadgram's backoff
+        DefaultTagger defaultTagger4 = new DefaultTagger();
+        UniGramTagger unigramBackoff3 = new UniGramTagger(defaultTagger4);
+        unigramBackoff3.train(trainingSentences);
+        BiGramTagger bigramBackoff2 = new BiGramTagger(unigramBackoff3);
+        bigramBackoff2.train(trainingSentences);
+        TriGramTagger trigramBackoff = new TriGramTagger(bigramBackoff2);
+        trigramBackoff.train(trainingSentences);
+        
+        // Quadgram with proper Trigram backoff
+        QuadGramTagger quadgramTagger = new QuadGramTagger(trigramBackoff);
         quadgramTagger.train(trainingSentences);
         
+        // For comparative analysis, also track higher-order cases directly triggered vs backed-off
         // Evaluate each tagger
         System.out.println("  Evaluating taggers on test set...");
         
-        double defaultAccuracy = defaultTagger.evaluate(testSentences);
-        double unigramAccuracy = unigramTagger.evaluate(testSentences);
-        double bigramAccuracy = bigramTagger.evaluate(testSentences);
-        double trigramAccuracy = trigramTagger.evaluate(testSentences);
-        double quadgramAccuracy = quadgramTagger.evaluate(testSentences);
+        List<TaggedSentence> defaultTagged = tagTestSentences(defaultTagger, testSentences);
+        List<TaggedSentence> unigramTagged = tagTestSentences(unigramTagger, testSentences);
+        List<TaggedSentence> bigramTagged = tagTestSentences(bigramTagger, testSentences);
+        List<TaggedSentence> trigramTagged = tagTestSentences(trigramTagger, testSentences);
+        List<TaggedSentence> quadgramTagged = tagTestSentences(quadgramTagger, testSentences);
+        
+        double defaultAccuracy = calculateAccuracy(testSentences, defaultTagged);
+        double unigramAccuracy = calculateAccuracy(testSentences, unigramTagged);
+        double bigramAccuracy = calculateAccuracy(testSentences, bigramTagged);
+        double trigramAccuracy = calculateAccuracy(testSentences, trigramTagged);
+        double quadgramAccuracy = calculateAccuracy(testSentences, quadgramTagged);
         
         // Store results for this fold
         defaultAccuracies.add(defaultAccuracy);
@@ -135,10 +168,101 @@ public class JackknifeEvaluator {
         System.out.printf("    Bigram Tagger:   %.2f%%\n", bigramAccuracy);
         System.out.printf("    Trigram Tagger:  %.2f%%\n", trigramAccuracy);
         System.out.printf("    Quadgram Tagger: %.2f%%\n", quadgramAccuracy);
+        
+        // Analyze cases where higher order n-grams differ (actual improvement)
+        int biImprovements = 0;
+        int biErrors = 0;
+        int triImprovements = 0;
+        int triErrors = 0;
+        int quadImprovements = 0;
+        int quadErrors = 0;
+        
+        int totalWords = 0;
+        for (int i = 0; i < testSentences.size(); i++) {
+            TaggedSentence gold = testSentences.get(i);
+            TaggedSentence uniTagged = unigramTagged.get(i);
+            TaggedSentence biTagged = bigramTagged.get(i);
+            TaggedSentence triTagged = trigramTagged.get(i);
+            TaggedSentence quadTagged = quadgramTagged.get(i);
+            
+            for (int j = 0; j < gold.getWords().size(); j++) {
+                totalWords++;
+                String goldTag = gold.getWords().get(j).getTag();
+                String uniTag = uniTagged.getWords().get(j).getTag();
+                String biTag = biTagged.getWords().get(j).getTag();
+                String triTag = triTagged.getWords().get(j).getTag();
+                String quadTag = quadTagged.getWords().get(j).getTag();
+                
+                // Where Bigram differs from Unigram
+                if (!biTag.equals(uniTag)) {
+                    if (biTag.equals(goldTag) && !uniTag.equals(goldTag)) {
+                        biImprovements++;
+                    } else if (!biTag.equals(goldTag) && uniTag.equals(goldTag)) {
+                        biErrors++;
+                    }
+                }
+                
+                // Where Trigram differs from Bigram
+                if (!triTag.equals(biTag)) {
+                    if (triTag.equals(goldTag) && !biTag.equals(goldTag)) {
+                        triImprovements++;
+                    } else if (!triTag.equals(goldTag) && biTag.equals(goldTag)) {
+                        triErrors++;
+                    }
+                }
+                
+                // Where Quadgram differs from Trigram
+                if (!quadTag.equals(triTag)) {
+                    if (quadTag.equals(goldTag) && !triTag.equals(goldTag)) {
+                        quadImprovements++;
+                    } else if (!quadTag.equals(goldTag) && triTag.equals(goldTag)) {
+                        quadErrors++;
+                    }
+                }
+            }
+        }
+        
+        System.out.printf("  Detailed comparison for %d words:\n", totalWords);
+        System.out.printf("    Bigram vs. Unigram:   +%.2f%% (improved: %d, errors: %d)\n", 
+               100.0 * (biImprovements - biErrors) / totalWords, biImprovements, biErrors);
+        System.out.printf("    Trigram vs. Bigram:   +%.2f%% (improved: %d, errors: %d)\n", 
+               100.0 * (triImprovements - triErrors) / totalWords, triImprovements, triErrors);
+        System.out.printf("    Quadgram vs. Trigram: +%.2f%% (improved: %d, errors: %d)\n", 
+               100.0 * (quadImprovements - quadErrors) / totalWords, quadImprovements, quadErrors);
         System.out.println();
         
         // Calculate some statistics on tag frequencies in this fold
         calculateTagStats(testSentences);
+    }
+    
+    private static List<TaggedSentence> tagTestSentences(Tagger tagger, List<TaggedSentence> testSentences) {
+        List<TaggedSentence> taggedSentences = new ArrayList<>();
+        for (TaggedSentence sentence : testSentences) {
+            taggedSentences.add(tagger.tagSentence(sentence));
+        }
+        return taggedSentences;
+    }
+    
+    private static double calculateAccuracy(List<TaggedSentence> goldSentences, List<TaggedSentence> predictedSentences) {
+        int totalWords = 0;
+        int correctPredictions = 0;
+        
+        for (int i = 0; i < goldSentences.size(); i++) {
+            List<TaggerWord> goldWords = goldSentences.get(i).getWords();
+            List<TaggerWord> predictedWords = predictedSentences.get(i).getWords();
+            
+            for (int j = 0; j < goldWords.size(); j++) {
+                String goldTag = goldWords.get(j).getTag();
+                String predictedTag = predictedWords.get(j).getTag();
+                
+                totalWords++;
+                if (goldTag.equals(predictedTag)) {
+                    correctPredictions++;
+                }
+            }
+        }
+        
+        return totalWords > 0 ? (double) correctPredictions / totalWords * 100 : 0;
     }
     
     private static void calculateTagStats(List<TaggedSentence> sentences) {

@@ -13,7 +13,9 @@ import java.util.List;
  * Simple CSV repository implementation without dependencies
  */
 public class CSVDatasetRepository implements DatasetRepository {
+    // Use cleaned dataset for better performance
     private static final String CSV_FILE_PATH = "src/main/resources/ner_dataset2.csv";
+    public static final String CLEANED_CSV_FILE_PATH = "src/main/resources/cleaned_ner_dataset.csv";
 
     @Override
     public List<TaggedSentence> loadSentences() {
@@ -21,7 +23,7 @@ public class CSVDatasetRepository implements DatasetRepository {
         TaggedSentence currentSentence = new TaggedSentence();
         String prevSentenceId = "";
         
-        try (BufferedReader reader = new BufferedReader(new FileReader(CSV_FILE_PATH))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(CLEANED_CSV_FILE_PATH))) {
             String line;
             boolean isFirstLine = true;
             
@@ -58,7 +60,7 @@ public class CSVDatasetRepository implements DatasetRepository {
                 sentences.add(currentSentence);
             }
             
-            System.out.println("Loaded " + sentences.size() + " sentences from CSV file: " + CSV_FILE_PATH);
+            System.out.println("Loaded " + sentences.size() + " sentences from CSV file: " + CLEANED_CSV_FILE_PATH);
             return sentences;
             
         } catch (IOException e) {
